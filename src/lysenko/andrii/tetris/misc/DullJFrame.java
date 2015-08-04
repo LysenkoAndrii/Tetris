@@ -15,7 +15,7 @@ import java.util.NoSuchElementException;
 
 /**
  * This is an empty substitute of JFrame to invoke addInputListener on it;
- * Used by ConsoleView
+ * Used as a member of ConsoleView
  */
 public class DullJFrame {
     private static Logger log = Logger.getLogger(ConsoleView.class.getName());
