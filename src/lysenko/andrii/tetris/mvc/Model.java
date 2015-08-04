@@ -1,13 +1,16 @@
 package lysenko.andrii.tetris.mvc;
 
-import lysenko.andrii.tetris.components.*;
 
+import lysenko.andrii.tetris.components.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+
 
 /**
  * Created by admin on 30.01.2015.
@@ -61,7 +64,7 @@ public class Model {
         try {
             checkConsistency(next);
         } catch (CellConsistencyException e) {
-            gameOver = true;
+            setGameOver();
             return;
         }
         current = next;
@@ -74,6 +77,8 @@ public class Model {
     }
 
     public void performAction(UserAction action) {
+        if (action == null)
+            return;
         if (action instanceof Move)
             this.moveBrick((Move) action);
         else
@@ -87,11 +92,23 @@ public class Model {
             checkBounds(temp);
             checkConsistency(temp);
             current = temp;
-        } catch (BrickOutOfBoundsException e1){
+        } catch (BrickOutOfBoundsException | CellConsistencyException e1){
             log.warning(e1.getClass().getName());
-        } catch (Exception e2){
-            log.warning(e2.getClass().getName());
         }
+    }
+
+    private void setGameOver() {
+        Controller.getInstance().guiBlocked = true;
+        log.info("setting gameOver flag");
+        gameOver = true;
+        Controller.getInstance().nextTurn();
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException e2) {
+            log.log(Level.WARNING, "", e2);
+        }
+        log.info("gameOver flag is set");
+        Controller.getInstance().guiBlocked = false;
     }
 
     private void moveBrick(Move move) {
@@ -101,8 +118,9 @@ public class Model {
             checkBounds(temp);
             checkConsistency(temp);
             current = temp;
-            if (move == Move.DOWN)
-                score++;
+            // uncomment if you want to count every fall to a score
+            //if (move == Move.DOWN)
+            //    score++;
             log.info("@current variable is set on move: "+move);
         } catch (IllegalPositionException e1){
             log.warning(e1.getClass().getName());
@@ -133,7 +151,7 @@ public class Model {
         }
     }
 
-    /* check whether current brick has space below */
+    /* checks whether current brick has space below */
     public boolean brickCanFall(){
         boolean result = true;
         Brick temp = current.copy();
@@ -258,4 +276,12 @@ public class Model {
     public boolean isGameOver() { return gameOver; }
 
     public int getScore() { return score; }
+
+    public void newGame() {
+        deadBricks = new HashSet<Brick>();
+        current = Brick.getRandom();
+        next = Brick.getRandom();
+        score = 0;
+        gameOver = false;
+    }
 }
