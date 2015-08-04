@@ -18,7 +18,7 @@ public class Controller {
     private final Model model = new Model();
     private final ReentrantLock lock = new ReentrantLock();
 
-    /* flag that becomes true whenever any line as being 
+    /* flag that becomes true whenever any line as being
      * destroyed, makes key listener return with nothing done */
     public volatile boolean guiBlocked = false;
 
