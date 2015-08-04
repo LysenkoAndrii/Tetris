@@ -1,14 +1,19 @@
 package lysenko.andrii.tetris.mvc;
 
+
+import lysenko.andrii.tetris.misc.DullJFrame;
+
 import java.io.PrintWriter;
+
 
 /**
  * Created by admin on 10.07.2015.
  */
 public class ConsoleView extends View {
     private final PrintWriter writer = new PrintWriter(System.out);
+    private final DullJFrame dullFrame = new DullJFrame();
 
-    public ConsoleView(int maxX, int maxY) {
+    ConsoleView(int maxX, int maxY) {
         super(maxX, maxY);
     }
 
@@ -37,5 +42,9 @@ public class ConsoleView extends View {
         }
         writer.println();
         writer.flush();
+    }
+
+    public DullJFrame getDullJFrame() {
+        return dullFrame;
     }
 }

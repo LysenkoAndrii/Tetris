@@ -1,31 +1,32 @@
 package lysenko.andrii.tetris.mvc;
 
-import lysenko.andrii.tetris.components.*;
 
-import java.util.Scanner;
-import java.util.InputMismatchException;
+import lysenko.andrii.tetris.components.*;
+import lysenko.andrii.tetris.misc.MyInputListener;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import javax.swing.SwingUtilities;
+
 
 public class Controller {
     private static Logger log = Logger.getLogger(Controller.class.getName());
     private static Controller instance;
-    private Controller.MyManager myManager;
+    private Thread ticker;
     private final View view;
     private final Model model = new Model();
-    private final Scanner scanner = new Scanner(System.in);
     private final ReentrantLock lock = new ReentrantLock();
+
+    /* flag that becomes true whenever any line as being
+     * destroyed, makes key listener return with nothing done */
     public volatile boolean guiBlocked = false;
 
     static {
         log.setLevel(Level.OFF);
     }
 
-    public Controller(boolean isGraphicalView) {
+    private Controller(boolean isGraphicalView) {
         int maxX = model.MAX_X;
         int maxY = model.MAX_Y;
         if (isGraphicalView) {
@@ -34,41 +35,55 @@ public class Controller {
             view = new ConsoleView(maxX, maxY);
         }
         instance = this;
-        this.start();
     }
 
     public static Controller getInstance() { return instance; }
 
+    public static Controller getInstance(boolean isGraphicalView) {
+        if (instance == null)
+            instance = new Controller(isGraphicalView);
+        return instance;
+    }
+
     /* rewrite this method */
-    private void start() {
+    public void start() {
         initListeners();
         this.drawGame();
-        myManager = this.new MyManager();
-        log.fine("myManager has been created");
-        myManager.start();
-        processGame();
-        log.fine("MyManager has been started");
+        ticker = this.new Ticker();
+        ticker.start();
+        log.fine("Ticker has been started");
     }
 
     private void initListeners() {
         if (view instanceof GraphicalView) {
             GraphicalView v = (GraphicalView) view;
-            Runnable doRun = new Runnable() {
-                @Override
-                public void run() {
-                    v.getJFrame().addKeyListener(new MyKeyAdapter());
-                }
-            };
-            if (SwingUtilities.isEventDispatchThread()) {
-                (new Thread(doRun)).start();
-            } else {
-                try {
-                    SwingUtilities.invokeAndWait(doRun);
-                } catch (Exception e) {
-                    log.log(Level.WARNING, "", e);
-                }
-            }
+            Thread doRun = new Thread(() -> v.getJFrame().addKeyListener(new GraphicalKeyAdapter()));
+            doRun.start();
+        } else if (view instanceof ConsoleView) {
+            ConsoleView v = (ConsoleView) view;
+            Thread doRun = new Thread(() -> v.getDullJFrame().addInputListener(new ConsoleInputAdapter()));
+            doRun.start();
         }
+    }
+
+    public void newGame() {
+        lock.lock();
+            guiBlocked = true;
+            model.newGame();
+            if (ticker.isAlive())
+                ticker.interrupt();
+            try {
+                if (ticker.isAlive())
+                    ticker.join();
+            } catch (InterruptedException e) {
+                log.log(Level.WARNING, "", e);
+            }
+            view.setGameOver(false);
+            this.drawGame();
+            ticker = this.new Ticker();
+            ticker.start();
+            guiBlocked = false;
+        lock.unlock();
     }
 
     public void nextTurn() {
@@ -78,49 +93,10 @@ public class Controller {
         if (model.brickCanFall()) {
             model.performAction(Move.DOWN);
         } else {
-            this.drawGame();
+            this.drawGame(); // todo: verify what does this line change
             model.nextBrick();
         }
         this.drawGame();
-    }
-
-    private UserAction recognizeUserAction() {
-        UserAction action = null;
-        int n = scanner.nextInt();
-        if (n == 5)
-            action = Move.DOWN;
-        else if (n == 4)
-            action = Move.LEFT;
-        else if (n == 6)
-            action = Move.RIGHT;
-        else if (n == 1)
-            action = Rotation.LEFT;
-        else if (n == 2)
-            action = Rotation.RIGHT;
-        return action;
-    }
-
-    private void processGame() {
-        try {
-            while (true) {
-                    log.fine("processGame: in a lock block");
-                    UserAction action = recognizeUserAction();
-                    lock.lock();
-                        log.log(Level.WARNING, "Controller acquires the lock");
-                        if (action != null)
-                            model.performAction(action);
-                        this.drawGame();
-                        log.log(Level.WARNING, "Controller releases the lock");
-                    lock.unlock();
-            }
-        } catch (InputMismatchException e1) {
-            log.log(Level.WARNING, "", e1);
-            scanner.nextLine();
-            processGame();
-        } finally {
-            if (myManager.isAlive())
-                myManager.interrupt();
-        }
     }
 
     public int getScore() { return model.getScore(); }
@@ -139,53 +115,91 @@ public class Controller {
             return 0;
     }
 
-    public void drawGame() { view.drawGame(); }
+    /*
+     * Delegates drawing game to View layer.
+     * Matter fact, locking is performed in this method because View layer uses
+     * Model layer to identify which cells to paint, so that we need to keep
+     * memory consistency is Model layer
+     * */
+    public void drawGame() {
+        lock.lock();
+            log.log(Level.INFO, "drawGame() method acquired lock");
+            view.drawGame();
+            log.log(Level.INFO, "drawGame() method releases lock");
+        lock.unlock();
+    }
 
-    class MyManager extends Thread {
+    /*
+     * This class moves current brick down every latency period of time
+     */
+    private class Ticker extends Thread {
+        final long latency = 500;
         @Override
         public void run() {
-            while (true) {
-                log.fine("MyManager run() method");
+            boolean b = true;
+            while (b) {
+                log.fine("Ticker run() method");
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(latency);
                     lock.lock();
-                        log.log(Level.WARNING, "MyManager acquires the lock");
+                        log.log(Level.INFO, "Ticker acquired the lock");
                         log.fine("MyManager: in a lock block");
                         Controller.this.nextTurn();
-                        log.log(Level.WARNING, "MyManager releases the lock");
+                        log.log(Level.INFO, "Ticker releases the lock");
                     lock.unlock();
+                    b = ! (isInterrupted() || Controller.this.model.isGameOver());
                 } catch (InterruptedException e1) {
-                    log.log(Level.WARNING, "", e1);
+                    //log.log(Level.WARNING, "", e1);
                     return;
                 }
             }
+            //guarantees that there will be a notification
+            // to a user when the game is over
+            Controller.this.nextTurn();
         }
     }
 
-    private class MyKeyAdapter extends KeyAdapter{
+    private class GraphicalKeyAdapter extends KeyAdapter{
         @Override
         public void keyPressed(KeyEvent e) {
             if (guiBlocked)
                 return;
-            log.info("keyPressed method (start)");
+            if (Controller.this.model.isGameOver()) {
+                Controller.this.newGame();
+                return;
+            }
             int code = e.getKeyCode();
             String name = KeyEvent.getKeyText(code);
             log.info(String.format("\'%d\' : \'%s\'", code, name));
-            UserAction action;
+            UserAction action = null;
             switch (name) {
                 case "Up" : action = Rotation.LEFT; break;
                 case "Left" : action = Move.LEFT; break;
                 case "Right" : action = Move.RIGHT; break;
                 case "Down" : action = Move.DOWN; break;
-                default : log.info("nothing"); return;
             }
             lock.lock();
-            log.log(Level.WARNING, "Listener acquires the lock");
-            model.performAction(action);
-            Controller.this.drawGame();
-            log.log(Level.WARNING, "Listener releases the lock");
+                log.log(Level.INFO, "Listener acquired the lock");
+                model.performAction(action);
+                log.log(Level.INFO, "Listener releases the lock");
             lock.unlock();
-            log.info("keyPressed method (end)");
+            Controller.this.drawGame();
+        }
+    }
+
+    private class ConsoleInputAdapter implements MyInputListener {
+        @Override
+        public void inputPerformed(UserAction action) {
+            if (Controller.this.model.isGameOver()) {
+                Controller.this.newGame();
+                return;
+            }
+            lock.lock();
+                log.info("ConsoleInputAdapter acquired the lock");
+                model.performAction(action);
+                Controller.this.drawGame();
+                log.info("ConsoleInputAdapter releases the lock");
+            lock.unlock();
         }
     }
 }

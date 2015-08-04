@@ -7,40 +7,29 @@ import java.awt.Color;
 import static java.awt.Color.*;
 import java.awt.Graphics;
 import java.awt.Dimension;
-import java.util.logging.Logger;
-import java.util.logging.Level;
 
 
 public class GraphicalView extends View {
 	private JPanel panel;
-	private static final Logger log = Logger.getLogger(GraphicalView.class.getSimpleName());
 	private JFrame frame;
 
-	static {
-		log.setLevel(Level.WARNING);
-	}
-
-	public GraphicalView(int maxX, int maxY) {
+	GraphicalView(int maxX, int maxY) {
 		super(maxX, maxY);
 		init();
 	}
 
-	public void drawGame() {
+	/* todo: do we really need to synchronize this method? */
+	public synchronized void drawGame() {
 		refreshScore();
 		panel.repaint();
-	}
-
-	public static void main(String[] args) {
-		new GraphicalView(9, 19);
 	}
 
 	public JFrame getJFrame() {
 		return frame;
 	}
 
-	/* hided superclass method */
-	@Override
-	void init() {
+
+	private void init() {
 		frame = new JFrame("Tetris v1.0");
 		frame.setFocusable(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
