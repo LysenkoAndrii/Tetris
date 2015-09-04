@@ -37,7 +37,7 @@ public class Model {
     private static Model instance;
     private boolean gameOver = false;
     // @latency is passed as an argument in Thread.sleep() method.
-    private long latency = 400;
+    private long latency = 400; //400
 
     private BrickType deb = BrickType.J; // this required only for debugging purpose
 
@@ -210,21 +210,21 @@ public class Model {
         }
     }
 
-    private int destroyLines(){
+    private int destroyLines() {
         currentVisible = false;
         Controller.getInstance().guiBlocked = true;
         ArrayList<Integer> list = new ArrayList<Integer>();
-        for(int y = MAX_Y; y >= MIN_Y; y--) {
+        for (int y = MAX_Y; y >= MIN_Y; y--) {
             boolean isLineFull = true; // if line is completely fulled by cells
-            for(int x = MIN_X; x <= MAX_X; x++){
-                if(getIdentifier(x, y) == 0) {
+            for (int x = MIN_X; x <= MAX_X; x++) {
+                if (getIdentifier(x, y) == 0) {
                     isLineFull = false;
                     break;
                 }
             }
-            if(isLineFull){
+            if (isLineFull) {
                 Iterator<Brick> iterator = deadBricks.iterator();
-                while(iterator.hasNext()) {
+                while (iterator.hasNext()) {
                     Brick temp = iterator.next();
                     for(int x = MIN_X; x <= MAX_X; x++) {
                         Cell cell = Cell.getInstance(x, y);
@@ -233,7 +233,6 @@ public class Model {
                     }
                 }
                 try {
-                    Thread.sleep(latency);
                     Controller.getInstance().drawGame();
                     Thread.sleep(latency);
                 } catch (InterruptedException e1) {
@@ -245,7 +244,9 @@ public class Model {
         try {
             for(Integer y : list) {
                 this.moveCellsDown(y);
+                Controller.inform("calling drawGame");
                 Controller.getInstance().drawGame();
+                Controller.inform("deleted one line");
                 Thread.sleep(latency);
             }
         } catch (InterruptedException e1) {

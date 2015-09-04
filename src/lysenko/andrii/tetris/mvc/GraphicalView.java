@@ -18,8 +18,8 @@ public class GraphicalView extends View {
 		init();
 	}
 
-	/* todo: do we really need to synchronize this method? */
-	public synchronized void drawGame() {
+
+	public void drawGame() {
 		refreshScore();
 		panel.repaint();
 	}
@@ -73,17 +73,28 @@ public class GraphicalView extends View {
 			g.drawString("Next brick", xTemp, yBase - 5);
 		}
 
-		@Override
+        /**
+        * Matter fact, locking is performed in this method because View layer
+        * uses Model layer
+        * to identify which cells to paint, so that we need to keep
+        * memory consistency is Model layer
+		*/
+        @Override
 		public void paintComponent(final Graphics g) {
-			super.paintComponent(g);
+            log.info(" AWT-EventQueue thread entered paintComponent method");
+            super.paintComponent(g);
 			if (GraphicalView.this.gameOver)
-				this.drawGameOver(g);
-			this.drawStrings(g);
+                this.drawGameOver(g);
+            this.drawStrings(g);
 			this.drawGrid(g);
-			this.drawSmallGrid(g);
-			this.fillSmallGrid(g);
+            this.drawSmallGrid(g);
+            this.fillSmallGrid(g);
 			this.fillGrid(g);
-			log.info("something was drawn");
+            synchronized (Controller.getInstance().obj) {
+                Controller.getInstance().obj.notifyAll();
+                Controller.inform("notified!");
+            }
+			log.info(" AWT-EventQueue thread exited paintComponent method");
 		}
 
 		private void drawGrid(final Graphics g) {
