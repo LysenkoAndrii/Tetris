@@ -27,17 +27,11 @@ public class ConsoleView extends View {
         new Thread(() -> {
             refreshScore();
 
-            if(gameOver)
-
-            {
+            if(gameOver) {
                 writer.println("Game over!".toUpperCase());
                 // show this line and freeze view for several seconds
                 // then show something like "press any key to continue"
-            }
-
-            else
-
-            {
+            } else {
                 writer.format("%nYour score is %d%n", score);
                 for (int y = MIN_Y; y <= MAX_Y; y++) {
                     writer.print("  ");
@@ -51,9 +45,7 @@ public class ConsoleView extends View {
 
             writer.println();
             writer.flush();
-            synchronized(Controller.getInstance().obj)
-
-            {
+            synchronized(Controller.getInstance().obj) {
                 Controller.getInstance().obj.notifyAll();
                 Controller.inform("notified!");
             }
