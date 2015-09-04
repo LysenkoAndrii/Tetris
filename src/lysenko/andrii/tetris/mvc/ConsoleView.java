@@ -24,24 +24,40 @@ public class ConsoleView extends View {
     */
     @Override
     public void drawGame() {
-        refreshScore();
-        if(gameOver) {
-            writer.println("Game over!".toUpperCase());
-            // show this line and freeze view for several seconds
-            // then show something like "press any key to continue"
-        } else {
-            writer.format("%nYour score is %d%n", score);
-            for (int y = MIN_Y; y <= MAX_Y; y++) {
-                writer.print("  ");
-                for (int x = MIN_X; x <= MAX_X; x++) {
-                    int id = getIdentifier(x, y);
-                    writer.print(((id == 0) ? "." : id) + " ");
-                }
-                writer.println();
+        new Thread(() -> {
+            refreshScore();
+
+            if(gameOver)
+
+            {
+                writer.println("Game over!".toUpperCase());
+                // show this line and freeze view for several seconds
+                // then show something like "press any key to continue"
             }
-        }
-        writer.println();
-        writer.flush();
+
+            else
+
+            {
+                writer.format("%nYour score is %d%n", score);
+                for (int y = MIN_Y; y <= MAX_Y; y++) {
+                    writer.print("  ");
+                    for (int x = MIN_X; x <= MAX_X; x++) {
+                        int id = getIdentifier(x, y);
+                        writer.print(((id == 0) ? "." : id) + " ");
+                    }
+                    writer.println();
+                }
+            }
+
+            writer.println();
+            writer.flush();
+            synchronized(Controller.getInstance().obj)
+
+            {
+                Controller.getInstance().obj.notifyAll();
+                Controller.inform("notified!");
+            }
+        }).start();
     }
 
     public DullJFrame getDullJFrame() {
