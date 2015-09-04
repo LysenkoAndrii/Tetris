@@ -16,11 +16,13 @@ public class Controller {
     private Thread ticker;
     private final View view;
     private final Model model = new Model();
-    private final ReentrantLock lock = new ReentrantLock();
+    public final ReentrantLock lock = new ReentrantLock();
 
     /* flag that becomes true whenever any line as being
      * destroyed, makes key listener return with nothing done */
     public volatile boolean guiBlocked = false;
+
+    public final Object obj = new Object();
 
     static {
         log.setLevel(Level.OFF);
@@ -90,12 +92,10 @@ public class Controller {
         log.fine("nextTurn method");
         boolean b = model.isGameOver();
         view.setGameOver(b);
-        if (model.brickCanFall()) {
+        if (model.brickCanFall())
             model.performAction(Move.DOWN);
-        } else {
-            this.drawGame(); // todo: verify what does this line change
+        else
             model.nextBrick();
-        }
         this.drawGame();
     }
 
@@ -115,18 +115,32 @@ public class Controller {
             return 0;
     }
 
-    /*
+    /**
      * Delegates drawing game to View layer.
-     * Matter fact, locking is performed in this method because View layer uses
-     * Model layer to identify which cells to paint, so that we need to keep
-     * memory consistency is Model layer
+     * should be invoked only in "locked" context
      * */
     public void drawGame() {
         lock.lock();
-            log.log(Level.INFO, "drawGame() method acquired lock");
-            view.drawGame();
-            log.log(Level.INFO, "drawGame() method releases lock");
+            Controller.inform("drawGame() method acquired lock");
+            synchronized(obj) {
+                view.drawGame();
+                try {
+                    Controller.inform("starting waiting");
+                    obj.wait();
+                } catch (InterruptedException e) {
+                    log.log(Level.WARNING, "", e);
+                }
+                Controller.inform("ended waiting");
+            }
+        Controller.inform("drawGame() method releases lock");
         lock.unlock();
+    }
+
+    //public void
+
+    static void inform(String s) {
+        String threadName = Thread.currentThread().getName();
+        log.info(String.format("%s says: %s", threadName, s));
     }
 
     /*
@@ -134,6 +148,11 @@ public class Controller {
      */
     private class Ticker extends Thread {
         final long latency = 500;
+
+        public Ticker() {
+            super("Ticker");
+        }
+
         @Override
         public void run() {
             boolean b = true;
@@ -142,10 +161,9 @@ public class Controller {
                 try {
                     Thread.sleep(latency);
                     lock.lock();
-                        log.log(Level.INFO, "Ticker acquired the lock");
-                        log.fine("MyManager: in a lock block");
+                        Controller.inform("Ticker's run method acquired the lock");
                         Controller.this.nextTurn();
-                        log.log(Level.INFO, "Ticker releases the lock");
+                        Controller.inform("Ticker's run method releases the lock");
                     lock.unlock();
                     b = ! (isInterrupted() || Controller.this.model.isGameOver());
                 } catch (InterruptedException e1) {
@@ -155,7 +173,9 @@ public class Controller {
             }
             //guarantees that there will be a notification
             // to a user when the game is over
-            Controller.this.nextTurn();
+            lock.lock();
+                Controller.this.nextTurn();
+            lock.unlock();
         }
     }
 
@@ -165,25 +185,28 @@ public class Controller {
             if (guiBlocked)
                 return;
             if (Controller.this.model.isGameOver()) {
-                Controller.this.newGame();
+                new Thread(() -> Controller.this.newGame()).start();
                 return;
             }
             int code = e.getKeyCode();
             String name = KeyEvent.getKeyText(code);
             log.info(String.format("\'%d\' : \'%s\'", code, name));
-            UserAction action = null;
+            UserAction action;
             switch (name) {
                 case "Up" : action = Rotation.LEFT; break;
                 case "Left" : action = Move.LEFT; break;
                 case "Right" : action = Move.RIGHT; break;
                 case "Down" : action = Move.DOWN; break;
+                default: action = null;
             }
-            lock.lock();
-                log.log(Level.INFO, "Listener acquired the lock");
+            new Thread(() -> {
+                lock.lock();
+                Controller.inform("Listener acquired the lock");
                 model.performAction(action);
-                log.log(Level.INFO, "Listener releases the lock");
-            lock.unlock();
-            Controller.this.drawGame();
+                Controller.inform("Listener releases the lock");
+                Controller.this.drawGame();
+                lock.unlock();
+            }).start();
         }
     }
 
