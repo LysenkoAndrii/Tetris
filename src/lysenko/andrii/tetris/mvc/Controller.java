@@ -117,7 +117,6 @@ public class Controller {
 
     /**
      * Delegates drawing game to View layer.
-     * should be invoked only in "locked" context
      * */
     public void drawGame() {
         lock.lock();
