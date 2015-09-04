@@ -25,8 +25,6 @@ public abstract class View {
 
     abstract void drawGame();
 
-    void dull() { int x = 0; }
-
     public void setGameOver(boolean b) { this.gameOver = b; }
 
     protected void refreshScore() {
